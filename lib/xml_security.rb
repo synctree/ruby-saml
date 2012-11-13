@@ -37,9 +37,10 @@ module XMLSecurity
     C14N = "http://www.w3.org/2001/10/xml-exc-c14n#"
     DSIG = "http://www.w3.org/2000/09/xmldsig#"
 
-    attr_accessor :signed_element_id, :sig_element, :noko_sig_element
+    attr_accessor :signed_element_id, :sig_element, :noko_sig_element, :private_key
 
-    def initialize(response)
+    def initialize(response, private_key = "")
+      self.private_key = private_key
       super(response)
       extract_signed_element_id
     end
@@ -54,10 +55,51 @@ module XMLSecurity
       # check cert matches registered idp cert
       fingerprint = Digest::SHA1.hexdigest(cert.to_der)
 
-      if fingerprint != idp_cert_fingerprint.gsub(/[^a-zA-Z0-9]/,"").downcase
-        return soft ? false : (raise Onelogin::Saml::ValidationError.new("Fingerprint mismatch"))
-      end
+      # if fingerprint != idp_cert_fingerprint.gsub(/[^a-zA-Z0-9]/,"").downcase
+      #   return soft ? false : (raise Onelogin::Saml::ValidationError.new("Fingerprint mismatch"))
+      # end
 
+      if REXML::XPath.first(self, '//ns2:EncryptedAssertion')
+        decrypt_doc(base64_cert, soft)
+      else
+        validate_doc(base64_cert, soft)
+      end
+    end
+
+    def decrypt_doc(base64_cert, soft)
+      return false unless private_key != ""
+      pkey = OpenSSL::PKey::RSA.new(private_key)
+      
+      cert   = REXML::XPath.first(self, '//ds:X509Certificate')
+      c1, c2 = REXML::XPath.match(self, '//xenc:CipherValue', 'xenc' => 'http://www.w3.org/2001/04/xmlenc#')
+      
+      cert = OpenSSL::X509::Certificate.new(Base64.decode64(cert.text))
+      return false unless cert.check_private_key(pkey)
+      
+      rsak      = RSA::Key.new pkey.n, pkey.d
+      v1s       = Base64.decode64(c1.text)
+      
+      cipherkey = pkey.private_decrypt(v1s)
+
+      bytes  = Base64.decode64(c2.text).bytes.to_a
+      
+      cipher = OpenSSL::Cipher.new('des-ede3-cbc')
+      cipher.decrypt
+      cipher.iv  = bytes[0...8].pack('c*')
+      cipher.key = cipherkey
+
+      out = cipher.update(bytes[8..-1].pack('c*'))
+      out << cipher.update("\x00" * 1)
+      padding = out.bytes.to_a.last
+      
+      # remove the encrypted assertion
+      REXML::XPath.first(self, '//ns2:EncryptedAssertion').remove
+      
+      # add the decrypted assertion
+      decrypted_assertion = REXML::Document.new(out[0..-(padding+1)])
+      self.root.add_element(decrypted_assertion)
+
+      # continue document validation
       validate_doc(base64_cert, soft)
     end
 
@@ -68,7 +110,7 @@ module XMLSecurity
       inclusive_namespaces = extract_inclusive_namespaces
 
       document = Nokogiri.parse(self.to_s)
-
+      
       # store and remove signature node
       self.sig_element ||= begin
         element = REXML::XPath.first(self, "//ds:Signature", {"ds"=>DSIG})

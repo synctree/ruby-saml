@@ -18,11 +18,11 @@ module Onelogin
       attr_reader :response
       attr_reader :document
 
-      def initialize(response, options = {})
+      def initialize(response, options = {}, pk = "")
         raise ArgumentError.new("Response cannot be nil") if response.nil?
         @options  = options
         @response = (response =~ /^</) ? response : Base64.decode64(response)
-        @document = XMLSecurity::SignedDocument.new(@response)
+        @document = XMLSecurity::SignedDocument.new(@response, pk)
       end
 
       def is_valid?
