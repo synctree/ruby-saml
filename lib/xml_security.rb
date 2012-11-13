@@ -30,6 +30,7 @@ require 'nokogiri'
 require "digest/sha1"
 require "digest/sha2"
 require "onelogin/ruby-saml/validation_error"
+require "rsa"
 
 module XMLSecurity
 
