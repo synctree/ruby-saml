@@ -36,8 +36,8 @@ module Onelogin
       # The value of the user identifier as designated by the initialization request response
       def name_id
         @name_id ||= begin
-          node = REXML::XPath.first(document, "/p:Response/a:Assertion[@ID='#{document.signed_element_id}']/a:Subject/a:NameID", { "p" => PROTOCOL, "a" => ASSERTION })
-          node ||=  REXML::XPath.first(document, "/p:Response[@ID='#{document.signed_element_id}']/a:Assertion/a:Subject/a:NameID", { "p" => PROTOCOL, "a" => ASSERTION })
+          node = REXML::XPath.first(document, "//Response//ns2:Assertion[@ID='#{document.signed_element_id}']//ns2:Subject//ns2:NameID")
+          node ||=  REXML::XPath.first(document, "//Response[@ID='#{document.signed_element_id}']//ns2:Assertion//ns2:Subject//ns2:NameID")
           node.nil? ? nil : node.text
         end
       end
@@ -55,7 +55,7 @@ module Onelogin
         @attr_statements ||= begin
           result = {}
 
-          stmt_element = REXML::XPath.first(document, "/p:Response/a:Assertion/a:AttributeStatement", { "p" => PROTOCOL, "a" => ASSERTION })
+          stmt_element = REXML::XPath.first(document, "//Response//ns2:Assertion//ns2:AttributeStatement")
           return {} if stmt_element.nil?
 
           stmt_element.elements.each do |attr_element|
@@ -76,7 +76,7 @@ module Onelogin
       # When this user session should expire at latest
       def session_expires_at
         @expires_at ||= begin
-          node = REXML::XPath.first(document, "/p:Response/a:Assertion/a:AuthnStatement", { "p" => PROTOCOL, "a" => ASSERTION })
+          node = REXML::XPath.first(document, "//Response//ns2:Assertion//ns2:AuthnStatement")
           parse_time(node, "SessionNotOnOrAfter")
         end
       end
@@ -84,7 +84,7 @@ module Onelogin
       # Checks the status of the response for a "Success" code
       def success?
         @status_code ||= begin
-          node = REXML::XPath.first(document, "/p:Response/p:Status/p:StatusCode", { "p" => PROTOCOL, "a" => ASSERTION })
+          node = REXML::XPath.first(document, "/p:Response/p:Status/p:StatusCode", { "p" => PROTOCOL })
           node.attributes["Value"] == "urn:oasis:names:tc:SAML:2.0:status:Success"
         end
       end
@@ -92,7 +92,7 @@ module Onelogin
       # Conditions (if any) for the assertion to run
       def conditions
         @conditions ||= begin
-          REXML::XPath.first(document, "/p:Response/a:Assertion[@ID='#{document.signed_element_id}']/a:Conditions", { "p" => PROTOCOL, "a" => ASSERTION })
+          REXML::XPath.first(document, "//Response//ns2:Assertion[@ID='#{document.signed_element_id}']//ns2:Conditions")
         end
       end
 
