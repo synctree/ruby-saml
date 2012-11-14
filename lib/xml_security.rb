@@ -43,7 +43,6 @@ module XMLSecurity
     def initialize(response, private_key = "")
       self.private_key = private_key
       super(response)
-      extract_signed_element_id
     end
 
     def validate(idp_cert_fingerprint, soft = true)
@@ -55,10 +54,10 @@ module XMLSecurity
 
       # check cert matches registered idp cert
       fingerprint = Digest::SHA1.hexdigest(cert.to_der)
-
-      # if fingerprint != idp_cert_fingerprint.gsub(/[^a-zA-Z0-9]/,"").downcase
-      #   return soft ? false : (raise Onelogin::Saml::ValidationError.new("Fingerprint mismatch"))
-      # end
+      
+      if fingerprint != idp_cert_fingerprint.gsub(/[^a-zA-Z0-9]/,"").downcase
+        return soft ? false : (raise Onelogin::Saml::ValidationError.new("Fingerprint mismatch"))
+      end
 
       if REXML::XPath.first(self, '//ns2:EncryptedAssertion')
         decrypt_doc(base64_cert, soft)
@@ -105,6 +104,8 @@ module XMLSecurity
     end
 
     def validate_doc(base64_cert, soft = true)
+      extract_signed_element_id
+
       # validate references
 
       # check for inclusive namespaces
@@ -154,7 +155,7 @@ module XMLSecurity
 
       # signature method
       signature_algorithm     = algorithm(REXML::XPath.first(signed_info_element, "//ds:SignatureMethod", {"ds"=>DSIG}))
-
+      
       unless cert.public_key.verify(signature_algorithm.new, signature, canon_string)
         return soft ? false : (raise Onelogin::Saml::ValidationError.new("Key validation error"))
       end
