@@ -55,9 +55,9 @@ module XMLSecurity
       # check cert matches registered idp cert
       fingerprint = Digest::SHA1.hexdigest(cert.to_der)
       
-      if fingerprint != idp_cert_fingerprint.gsub(/[^a-zA-Z0-9]/,"").downcase
-        return soft ? false : (raise Onelogin::Saml::ValidationError.new("Fingerprint mismatch"))
-      end
+      # if fingerprint != idp_cert_fingerprint.gsub(/[^a-zA-Z0-9]/,"").downcase
+      #   return soft ? false : (raise Onelogin::Saml::ValidationError.new("Fingerprint mismatch"))
+      # end
 
       if REXML::XPath.first(self, '//ns2:EncryptedAssertion')
         decrypt_doc(base64_cert, soft)
@@ -68,7 +68,8 @@ module XMLSecurity
 
     def decrypt_doc(base64_cert, soft)
       return false unless private_key != ""
-      pkey = OpenSSL::PKey::RSA.new(private_key)
+      pkf = File.read(private_key)
+      pkey = OpenSSL::PKey::RSA.new(pkf)
       
       cert   = REXML::XPath.first(self, '//ds:X509Certificate')
       c1, c2 = REXML::XPath.match(self, '//xenc:CipherValue', 'xenc' => 'http://www.w3.org/2001/04/xmlenc#')
